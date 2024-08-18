@@ -82,9 +82,9 @@ def on_message(client, userdata, msg):
                         "story_id": 1,
                         "voice_id": 1
                     }
-                session_id = session_info.session_id
-                story_id = session_info.story_id
-                voice_id = session_info.voice_id
+                session_id = session_info["session_id"]
+                story_id = session_info["story_id"]
+                voice_id = session_info["voice_id"]
                 chat_data = create_chat(session_id, recording_text)
                 state = retrieve_chat(session_id, chat_data["id"])
                 while state != "completed":
@@ -304,7 +304,7 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
         content = story.content
         # 请求coze获取故事对应的问题
         session_id = create_session()
-        thread_results[f"{CLIENT_SN}_question_audio"] = {
+        thread_results[f"{CLIENT_SN}_session"] = {
             "session_id": session_id,
             "story_id": story_id,
             "voice_id": voice_id,
