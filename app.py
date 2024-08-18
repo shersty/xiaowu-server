@@ -102,7 +102,8 @@ def on_message(client, userdata, msg):
                             app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                             evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
                             msg_1 = {"msgId": 1, "identifier": "iwantplay",
-                                     "inputParams": {"role": 2, "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
+                                     "inputParams": {"role": 2,
+                                                     "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
                             app.logger.info(f"Audio file saved to {evaluate_audio}")
                             # 向MQTT服务器发送消息
                             client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
@@ -255,7 +256,8 @@ def play_story_by_id_and_voice(story_id, voice_id):
     silence = AudioSegment.silent(duration=1500)
     # 将静音片段插入到两段音频之间
     combined_audio = audio1 + silence + audio2
-    combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio", f"{story_id}_{voice_id}.mp3")
+    combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
+                                       f"{story_id}_{voice_id}.mp3")
     combined_audio.export(combined_audio_path, format="mp3")
     msg_1 = {"msgId": 1, "identifier": "iwantplay",
              "inputParams": {"role": 2, "url": f"{AUDIO_PREFIX}{os.path.basename(combined_audio_path)}"}}
@@ -345,6 +347,12 @@ def record_voice():
         app.logger.info(f"提交数据库失败")
         return jsonify({'success': False, 'message': 'Voice record failed'}), 404
     return jsonify({'success': True, 'voice_desc': voice_tag})
+
+
+@app.route('/api/voice/all', methods=['GET'])
+def get_voice_list():
+    voices = Voice.query.all()
+    return jsonify({'success': True, 'voice_list': voices})
 
 
 if __name__ == '__main__':
