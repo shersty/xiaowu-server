@@ -99,14 +99,13 @@ def on_message(client, userdata, msg):
                         coze_response = data["content"]
                         if coze_response.startswith("【主观评语】"):
                             evaluate = data["content"].split("\n")[0].split("：")[-1]
-
-                        app.logger.info(f"是bot的回答，转为语音:{evaluate}")
-                        evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                        msg_1 = {"msgId": 1, "identifier": "iwantplay",
-                                 "inputParams": {"role": 2, "url": f"{AUDIO_PREFIX} + {os.path.basename(evaluate_audio)}"}}
-                        app.logger.info(f"Audio file saved to {evaluate_audio}")
-                        # 向MQTT服务器发送消息
-                        client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                            app.logger.info(f"是bot的回答，转为语音:{evaluate}")
+                            evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
+                            msg_1 = {"msgId": 1, "identifier": "iwantplay",
+                                     "inputParams": {"role": 2, "url": f"{AUDIO_PREFIX} + {os.path.basename(evaluate_audio)}"}}
+                            app.logger.info(f"Audio file saved to {evaluate_audio}")
+                            # 向MQTT服务器发送消息
+                            client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
             elif message_data['identifier'] == 'voice_generated':
                 if "voiceText" in message_data["inputParams"]:
                     voice_text = message_data["inputParams"]["voiceText"].encode('utf-8').decode()
