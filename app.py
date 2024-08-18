@@ -1,8 +1,9 @@
 import json
 import os
+import threading
 import time
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g, ctx
 from flask_cors import CORS
 import paho.mqtt.client as mqtt
 from werkzeug.utils import secure_filename
@@ -13,6 +14,7 @@ from pydub import AudioSegment
 from flask_sqlalchemy import SQLAlchemy  # 导入扩展类
 import logging
 
+from coze import create_session, create_chat, retrieve_chat, chat_list
 from model import *
 
 app = Flask(__name__)
@@ -86,14 +88,14 @@ def save_audio_stream(story_id, voice_id, query, prompt_speech=None):
         # 使用 soundfile 写入音频文件
         output_path = os.path.join(app.root_path, "tmp", "sounds", file_name + ".wav")
         sf.write(output_path, audio_array, sample_rate)
-        print(f"Audio file saved to {output_path}")
-
+        app.logger.info(f"生成语音文件{output_path}")
         # 加载 .wav 文件
         sound = AudioSegment.from_wav(output_path)
         # 导出为 .mp3 格式
         output_mp3_path = os.path.join(app.root_path, "tmp", "sounds", file_name + ".mp3")
+        app.logger.info(f"转换成mp3文件: {output_mp3_path}")
         sound.export(output_mp3_path, format="mp3")
-        print(f"cost time: {time.time() - start_time}")
+        app.logger.info(f"花费时间: {time.time() - start_time}")
         return output_mp3_path
     else:
         print("Error:", response.text)
@@ -134,7 +136,7 @@ def get_audio_stream(story_id, voice_id, story_content):
         voice_desc = "tmp/sounds/xqf.wav"
     else:
         voice_desc = voice.voice_desc
-    app.logger.info(f"准备生成 {voice_desc} - {story_content} 的故事")
+    app.logger.info(f"准备生成 {voice_desc} - {story_content} 的音频文件")
     return save_audio_stream(story_id, voice_id, story_content, voice_desc)
 
 
@@ -164,37 +166,92 @@ def query_all_story():
     return jsonify({'success': True, 'stories': story_list})
 
 
+# local_data = threading.local()
+thread_results = {}
+
+
 @app.route('/api/story/audio/<int:story_id>/<int:voice_id>', methods=['GET'])
 def play_story_by_id_and_voice(story_id, voice_id):
-    # 使用filter_by查询，其中story_id和voice_id将从URL中自动转换为整数
-    story_audio = StoryAudio.query.filter_by(story_id=story_id, voice_id=voice_id).all()
-    # 如果没有找到故事音频，返回404状态码和错误消息
-    if not story_audio:
-        app.logger.info(f"没有找到{story_id}对应{voice_id}的音频文件，重新生成")
+    # 复制当前应用上下文
+    thread1 = threading.Thread(target=get_story_audio_by_id_and_voice,
+                               kwargs={'story_id': story_id, 'voice_id': voice_id})
+    thread1.start()
+    thread2 = threading.Thread(target=get_story_question_by_id_and_voice,
+                               kwargs={'story_id': story_id, 'voice_id': voice_id})
+    thread2.start()
+    thread1.join()
+    thread2.join()
+    # 加载第一段音频
+    audio1 = AudioSegment.from_file(thread_results[f"{story_id}_{voice_id}_story_audio"])
+    # 加载第二段音频
+    audio2 = AudioSegment.from_file(thread_results[f"{story_id}_{voice_id}_question_audio"])
+    # 创建静音片段
+    silence = AudioSegment.silent(duration=1500)
+    # 将静音片段插入到两段音频之间
+    combined_audio = audio1 + silence + audio2
+    combined_audio_path = os.path.join(app.root_path, "tmp", "sounds", f"{story_id}_{voice_id}.mp3")
+    combined_audio.export(combined_audio_path, format="mp3")
+    msg_1 = {"msgId": 1, "identifier": "iwantplay",
+             "inputParams": {"role": 2, "url": combined_audio_path}}
+    app.logger.info(f"Audio file saved to {combined_audio_path}")
+    # 向MQTT服务器发送消息
+    client.publish(MQTT_TOPIC, payload=json.dumps(msg_1))
+    return jsonify({'status': 'success', 'message': 'Story play command sent to MQTT.'}), 200
+
+
+def get_story_audio_by_id_and_voice(story_id, voice_id):
+    with app.app_context():
+        # 使用filter_by查询，其中story_id和voice_id将从URL中自动转换为整数
+        story_audio = StoryAudio.query.filter_by(story_id=story_id, voice_id=voice_id).first()
+        # 如果没有找到故事音频，返回404状态码和错误消息
+        if not story_audio:
+            app.logger.info(f"没有找到{story_id}对应{voice_id}的音频文件，重新生成")
+            story = Story.query.filter_by(id=story_id).first()
+            story_content = story.content
+            story_audio = get_audio_stream(story_id, voice_id, story_content)
+            if story_audio:
+                new_user = StoryAudio(story_id=story_id, voice_id=voice_id, audio_path=story_audio)
+                # 添加到会话
+                db.session.add(new_user)
+                try:
+                    # 提交会话
+                    db.session.commit()
+                    app.logger.info(f"故事生成成功！")
+                except Exception as e:
+                    # 如果发生错误，回滚会话
+                    db.session.rollback()
+                    app.logger.error(e)
+                    app.logger.info(f"提交数据库失败")
+                finally:
+                    thread_results[f"{story_id}_{voice_id}_story_audio"] = story_audio
+                    # g.story_audio = story_audio
+            else:
+                thread_results[f"{story_id}_{voice_id}_story_audio"] = ""
+        else:
+            thread_results[f"{story_id}_{voice_id}_story_audio"] = story_audio.audio_path
+
+
+def get_story_question_by_id_and_voice(story_id, voice_id):
+    with app.app_context():
+        app.logger.info(f"生成故事对应的问题")
         story = Story.query.filter_by(id=story_id).first()
-        story_content = story.content
-        story_audio = get_audio_stream(story_id, voice_id, story_content)
-        if story_audio:
-            new_user = StoryAudio(story_id=story_id, voice_id=voice_id, audio_path=story_audio)
-            # 添加到会话
-            db.session.add(new_user)
-            try:
-                # 提交会话
-                db.session.commit()
-                app.logger.info(f"故事生成成功！")
-            except Exception as e:
-                # 如果发生错误，回滚会话
-                db.session.rollback()
-                app.logger.error(e)
-                app.logger.info(f"提交数据库失败")
-            finally:
-                return jsonify({'success': True, 'story_audio': story_audio})
-        return jsonify({'success': False, 'message': 'Generate failed'}), 404
-    # 将查询结果转换为字典列表，然后返回
-    story_audio_list = [
-        {'id': audio.id, 'story_id': audio.story_id, 'voice_id': audio.voice_id, 'audio_path': audio.audio_path,
-         'created': audio.created} for audio in story_audio]
-    return jsonify({'success': True, 'story_audio': story_audio_list[0]["audio_path"]})
+        content = story.content
+        # 请求coze获取故事对应的问题
+        session_id = create_session()
+        chat_data = create_chat(session_id, content)
+        state = retrieve_chat(session_id, chat_data["id"])
+        while state != "completed":
+            print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_state: {state}")
+            state = retrieve_chat(session_id, chat_data["id"])
+            time.sleep(0.5)
+        # 获取对话列表
+        answer = chat_list(session_id, chat_data["id"])
+        for data in answer:
+            if data["type"] == "answer":
+                question = data["content"].split("：")[-1]
+                app.logger.info(f"是bot的回答，转为语音:{question}")
+                question_audio = get_audio_stream(story_id, voice_id, question)
+                thread_results[f"{story_id}_{voice_id}_question_audio"] = question_audio
 
 
 @app.route('/api/voice/record/', methods=['POST'])
