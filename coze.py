@@ -149,15 +149,15 @@ if __name__ == '__main__':
     # 创建一个会话
     session_id = create_session()
     # session_id = "7404406791984988172"
-    print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - session_id: {session_id}")
+    # print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - session_id: {session_id}")
     # 在session中创建一个对话
     # chat_data = create_chat(session_id, "在一个遥远的森林里，有一只聪明勇敢的小兔子，它和朋友们快乐地生活。一天，森林里来了一只贪婪的狼，想要占领这片土地。小兔子想出了一个计划，它带领大家挖了一个大陷阱，成功地捉住了狼。从此，森林恢复了和平，所有动物都过上了幸福的生活。")
     chat_data = create_chat(session_id, "小兔子很聪明")
-    print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_data: {chat_data}")
+    # print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_data: {chat_data}")
     # 查询对话状态
     state = retrieve_chat(session_id, chat_data["id"])
     while state != "completed":
-        print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_state: {state}")
+        # print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_state: {state}")
         state = retrieve_chat(session_id, chat_data["id"])
         time.sleep(0.5)
     # 获取对话列表
