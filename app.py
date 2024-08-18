@@ -312,7 +312,7 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
         chat_data = create_chat(session_id, content)
         state = retrieve_chat(session_id, chat_data["id"])
         while state != "completed":
-            print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_state: {state}")
+            print(f"{(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))} - chat_state: {state}")
             state = retrieve_chat(session_id, chat_data["id"])
             time.sleep(0.5)
         # 获取对话列表
