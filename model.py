@@ -43,6 +43,7 @@ class Voice(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     voice_desc = db.Column(db.String(255), nullable=False)
     created = db.Column(db.DateTime, default=datetime.utcnow)
+    is_checked = db.Column(db.Boolean, default=False)
 
 
 class StoryAudio(db.Model):
