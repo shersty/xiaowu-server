@@ -355,7 +355,7 @@ def get_voice_list():
     # 将查询结果转换为列表
     voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_desc, "created": voice.created,
                    "isChecked": voice.is_checked} for voice in voices]
-    return jsonify({'success': True, 'voice_list': voice_list})
+    return jsonify({'success': True, 'voiceBeans': voice_list})
 
 
 if __name__ == '__main__':
