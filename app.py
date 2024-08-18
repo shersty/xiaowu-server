@@ -88,7 +88,7 @@ def on_message(client, userdata, msg):
                 chat_data = create_chat(session_id, recording_text)
                 state = retrieve_chat(session_id, chat_data["id"])
                 while state != "completed":
-                    print(f"{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())} - chat_state: {state}")
+                    print(f"{(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))} - chat_state: {state}")
                     state = retrieve_chat(session_id, chat_data["id"])
                     time.sleep(0.5)
                 # 获取对话列表
