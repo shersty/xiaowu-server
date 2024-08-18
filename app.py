@@ -63,6 +63,7 @@ def on_connect(client, userdata, flags, rc):
 # MQTT消息接收函数
 def on_message(client, userdata, msg):
     with app.app_context():
+        new_dialogue = None
         if msg.topic == COMMAND_CALL_TOPIC:
             pass
         elif msg.topic == EVENT_POST_TOPIC:
