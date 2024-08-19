@@ -337,7 +337,8 @@ def record_voice():
     data = request.get_json()
     user_id = data.get('user_id')
     voice_tag = data.get('voice_tag')
-    new_user = Voice(user_id=user_id, voice_desc=voice_tag)
+    voice_name = data.get('voice_name')
+    new_user = Voice(user_id=user_id, voice_desc=voice_name, voice_tag=voice_tag)
     # 添加到会话
     db.session.add(new_user)
     try:
@@ -357,7 +358,7 @@ def record_voice():
 def get_voice_list():
     voices = Voice.query.all()
     # 将查询结果转换为列表
-    voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_desc, "created": voice.created,
+    voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_tag, "created": voice.created,
                    "isChecked": voice.is_checked} for voice in voices]
     return jsonify({'success': True, 'voiceBeans': voice_list})
 
