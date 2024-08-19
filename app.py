@@ -358,6 +358,34 @@ def get_voice_list():
     return jsonify({'success': True, 'voiceBeans': voice_list})
 
 
+@app.route('/api/voice/update/', methods=['POST'])
+def update_voice_checked_state():
+    # 从POST请求中获取JSON数据
+    data = request.get_json()
+    voice_id = data.get('voice_id')
+    is_checked = data.get('is_checked')
+    user_id = data.get('user_id')
+    # 检查必要的参数是否存在
+    if not voice_id or not isinstance(is_checked, bool) or not user_id:
+        return jsonify({'error': '缺少必要的参数'}), 400
+    # 锁定同一user_id下的所有voice记录
+    voices = Voice.query.filter_by(user_id=user_id).with_for_update().all()
+    # 遍历这些记录，更新选中状态
+    # 只有指定voice_id的记录会设置为is_checked，其他都设置为False
+    for voice in voices:
+        if voice.id == voice_id:
+            voice.is_checked = is_checked
+        else:
+            voice.is_checked = False
+    # 提交事务
+    try:
+        db.session.commit()
+        return jsonify({'message': '选中状态更新成功'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': '更新失败'}), 500
+
+
 if __name__ == '__main__':
     # 启动 MQTT 客户端线程
     mqtt_thread = threading.Thread(target=start_mqtt_client)
