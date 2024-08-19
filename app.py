@@ -148,7 +148,7 @@ def on_message(client, userdata, msg):
                                 # 向MQTT服务器发送消息
                                 client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
                                 objective_evaluation = Dialogue(user_id=1, role="xiaowu",
-                                                                content=extract_content_from_tag('客观评价', data))
+                                                                content=extract_content_from_tag('客观评价', coze_response))
                                 app.logger.info(f"Objective evaluation: {objective_evaluation}")
                             else:
                                 # 播放下一个故事
