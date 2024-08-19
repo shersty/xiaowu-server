@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import threading
 import time
 
@@ -60,10 +61,30 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(EVENT_POST_TOPIC)
 
 
+def extract_content(tag, text):
+    pattern = re.compile(r'【' + re.escape(tag) + r'】[：:](.*?)\n')
+    match = pattern.search(text)
+    if match:
+        return match.group(1)
+    else:
+        return "内容未找到"
+
+
+def extract_content_from_tag(tag, text):
+    pattern = re.compile(rf'【{tag}】[：:](.*)', re.DOTALL)
+    match = pattern.search(text)
+    if match:
+        # 获取匹配的内容，并去除可能存在的首尾空白字符
+        return match.group(1).strip()
+    else:
+        return "标签未找到，内容未获取"
+
+
 # MQTT消息接收函数
 def on_message(client, userdata, msg):
     with app.app_context():
         new_dialogue = None
+        objective_evaluation = None
         if msg.topic == COMMAND_CALL_TOPIC:
             pass
         elif msg.topic == EVENT_POST_TOPIC:
@@ -99,12 +120,11 @@ def on_message(client, userdata, msg):
                 for data in answer:
                     if data["type"] == "answer":
                         coze_response = data["content"]
-                        if coze_response.startswith("- 【主观评语】") or coze_response.startswith("【主观评语】"):
-                            datas = data["content"].split("\n")
-                            evaluate = datas[0].split("：")[-1]
+                        if coze_response.contains("【主观评语】"):
+                            evaluate = extract_content('主观评语', coze_response)
                             if question_id < 1:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
-                                next_question = datas[1].split("：")[1]
+                                next_question = extract_content('问题', coze_response)
                                 # 问题数量 + 1
                                 session_info["question_id"] += 1
                                 thread_results[f"{CLIENT_SN}_session"] = session_info
@@ -127,6 +147,9 @@ def on_message(client, userdata, msg):
                                 app.logger.info(f"Audio file saved to {evaluate_audio}")
                                 # 向MQTT服务器发送消息
                                 client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                                objective_evaluation = Dialogue(user_id=1, role="xiaowu",
+                                                                content=extract_content_from_tag('客观评价', data))
+                                app.logger.info(f"Objective evaluation: {objective_evaluation}")
                             else:
                                 # 播放下一个故事
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
@@ -148,6 +171,8 @@ def on_message(client, userdata, msg):
             if new_dialogue:
                 # 添加到会话
                 db.session.add(new_dialogue)
+                if objective_evaluation:
+                    db.session.add(objective_evaluation)
                 try:
                     # 提交会话
                     db.session.commit()
