@@ -81,11 +81,13 @@ def on_message(client, userdata, msg):
                     session_info = {
                         "sessionId": create_session(),
                         "story_id": 1,
-                        "voice_id": 1
+                        "voice_id": 1,
+                        "question": 0
                     }
                 session_id = session_info["session_id"]
                 story_id = session_info["story_id"]
                 voice_id = session_info["voice_id"]
+                question_id = session_info["question_id"]
                 chat_data = create_chat(session_id, recording_text)
                 state = retrieve_chat(session_id, chat_data["id"])
                 while state != "completed":
@@ -98,15 +100,37 @@ def on_message(client, userdata, msg):
                     if data["type"] == "answer":
                         coze_response = data["content"]
                         if coze_response.startswith("- 【主观评语】"):
-                            evaluate = data["content"].split("\n")[0].split("：")[-1]
-                            app.logger.info(f"是bot的回答，转为语音:{evaluate}")
-                            evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                            msg_1 = {"msgId": 1, "identifier": "iwantplay",
-                                     "inputParams": {"role": 2,
-                                                     "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
-                            app.logger.info(f"Audio file saved to {evaluate_audio}")
-                            # 向MQTT服务器发送消息
-                            client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                            if question_id < 2:
+                                datas = data["content"].split("\n")
+                                evaluate = datas[0].split("：")[-1]
+                                app.logger.info(f"是bot的回答，转为语音:{evaluate}")
+                                next_question = datas[1].split("：")[1]
+                                # 问题数量 + 1
+                                session_info["question"] += 1
+                                thread_results[f"{CLIENT_SN}_session"] = session_info
+                                evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
+                                next_question_audio = get_audio_stream(story_id, voice_id, next_question)
+                                # 加载第一段音频
+                                audio1 = AudioSegment.from_file(evaluate_audio)
+                                # 加载第二段音频
+                                audio2 = AudioSegment.from_file(next_question_audio)
+                                # 创建静音片段
+                                silence = AudioSegment.silent(duration=1500)
+                                # 将静音片段插入到两段音频之间
+                                combined_audio = audio1 + silence + audio2
+                                combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
+                                                                   f"{story_id}_{voice_id}_{question_id}.mp3")
+                                combined_audio.export(combined_audio_path, format="mp3")
+                                msg_1 = {"msgId": 1, "identifier": "iwantplay",
+                                         "inputParams": {"role": 2,
+                                                         "url": f"{AUDIO_PREFIX}{os.path.basename(combined_audio_path)}"}}
+                                app.logger.info(f"Audio file saved to {evaluate_audio}")
+                                # 向MQTT服务器发送消息
+                                client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                            else:
+                                # 播放下一个故事
+                                app.logger.info(f"已经回答两个问题了，不用再回答了")
+                                pass
             elif message_data['identifier'] == 'voice_generated':
                 if "voiceText" in message_data["inputParams"]:
                     voice_text = message_data["inputParams"]["voiceText"].encode('utf-8').decode()
@@ -314,6 +338,7 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
             "session_id": session_id,
             "story_id": story_id,
             "voice_id": voice_id,
+            "question": 0
         }
         chat_data = create_chat(session_id, content)
         state = retrieve_chat(session_id, chat_data["id"])
