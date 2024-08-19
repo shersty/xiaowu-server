@@ -99,7 +99,7 @@ def on_message(client, userdata, msg):
                 for data in answer:
                     if data["type"] == "answer":
                         coze_response = data["content"]
-                        if coze_response.startswith("- 【主观评语】"):
+                        if coze_response.startswith("- 【主观评语】") or coze_response.startswith("【主观评语】"):
                             if question_id < 2:
                                 datas = data["content"].split("\n")
                                 evaluate = datas[0].split("：")[-1]
