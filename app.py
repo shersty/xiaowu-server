@@ -82,7 +82,7 @@ def on_message(client, userdata, msg):
                         "sessionId": create_session(),
                         "story_id": 1,
                         "voice_id": 1,
-                        "question": 0
+                        "question_id": 0
                     }
                 session_id = session_info["session_id"]
                 story_id = session_info["story_id"]
@@ -106,7 +106,7 @@ def on_message(client, userdata, msg):
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                                 next_question = datas[1].split("：")[1]
                                 # 问题数量 + 1
-                                session_info["question"] += 1
+                                session_info["question_id"] += 1
                                 thread_results[f"{CLIENT_SN}_session"] = session_info
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
                                 next_question_audio = get_audio_stream(story_id, voice_id, next_question)
@@ -338,7 +338,7 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
             "session_id": session_id,
             "story_id": story_id,
             "voice_id": voice_id,
-            "question": 0
+            "question_id": 0
         }
         chat_data = create_chat(session_id, content)
         state = retrieve_chat(session_id, chat_data["id"])
