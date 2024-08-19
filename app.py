@@ -130,9 +130,10 @@ def on_message(client, userdata, msg):
                             else:
                                 # 播放下一个故事
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                                msg_1 = {"msgId": 2, "identifier": "iwantplay",
+                                msg_1 = {"msgId": 1, "identifier": "iwantplay",
                                          "inputParams": {"role": 2,
                                                          "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
+                                app.logger.info(f"msg is {msg_1}")
                                 # 向MQTT服务器发送消息
                                 client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
                                 # 组装下一个故事
