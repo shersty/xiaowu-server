@@ -393,7 +393,7 @@ def update_voice_checked_state():
 
 
 @app.route('/api/voice/delete/', methods=['POST'])
-def delete_voice(voice_id):
+def delete_voice():
     data = request.get_json()
     voice_id = data.get('voice_id')
     voice_to_delete = Voice.query.filter_by(id=voice_id).first()
