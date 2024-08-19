@@ -100,9 +100,9 @@ def on_message(client, userdata, msg):
                     if data["type"] == "answer":
                         coze_response = data["content"]
                         if coze_response.startswith("- 【主观评语】") or coze_response.startswith("【主观评语】"):
-                            if question_id < 2:
-                                datas = data["content"].split("\n")
-                                evaluate = datas[0].split("：")[-1]
+                            datas = data["content"].split("\n")
+                            evaluate = datas[0].split("：")[-1]
+                            if question_id < 1:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                                 next_question = datas[1].split("：")[1]
                                 # 问题数量 + 1
@@ -129,8 +129,16 @@ def on_message(client, userdata, msg):
                                 client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
                             else:
                                 # 播放下一个故事
-                                app.logger.info(f"已经回答两个问题了，不用再回答了")
-                                pass
+                                evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
+                                msg_1 = {"msgId": 2, "identifier": "iwantplay",
+                                         "inputParams": {"role": 2,
+                                                         "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
+                                # 向MQTT服务器发送消息
+                                client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                                # 组装下一个故事
+                                story_id = 1 if story_id == 2 else 2
+                                play_story_by_id_and_voice(story_id, 1)
+                                app.logger.info(f"播放下一个故事")
             elif message_data['identifier'] == 'voice_generated':
                 if "voiceText" in message_data["inputParams"]:
                     voice_text = message_data["inputParams"]["voiceText"].encode('utf-8').decode()
