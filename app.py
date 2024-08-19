@@ -402,10 +402,15 @@ def delete_voice():
         db.session.delete(voice_to_delete)
         # 提交会话中的更改
         db.session.commit()
-        return jsonify({'message': f'Voice {voice_to_delete.voice_tag} deleted successfully'}), 200
+        # 删除后，查询剩余的Voice列表
+        remaining_voices = Voice.query.all()
+        voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_tag, "created": voice.created,
+                       "isChecked": voice.is_checked} for voice in remaining_voices]
+        return jsonify(
+            {'success': True, 'voiceBeans': voice_list}), 200
     else:
         # 如果没有找到对象，返回错误消息
-        return jsonify({'error': 'Voice not found'}), 404
+        return jsonify({'success': False}), 404
 
 
 if __name__ == '__main__':
