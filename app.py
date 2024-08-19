@@ -237,8 +237,12 @@ def query_all_story():
 thread_results = {}
 
 
-@app.route('/api/story/audio/<int:story_id>/<int:voice_id>', methods=['GET'])
-def play_story_by_id_and_voice(story_id, voice_id):
+@app.route('/api/story/audio/<int:story_id>/<int:user_id>', methods=['GET'])
+def play_story_by_id_and_voice(story_id, user_id):
+    # 获取当前user_id对应的voice_id
+    voice = Voice.query.filter_by(user_id=user_id, is_checked=True).first()
+    voice_id = voice.id
+    app.logger.info(f"用户{user_id}选中的语音为{voice_id} - {voice.voice_desc}")
     # 复制当前应用上下文
     thread1 = threading.Thread(target=get_story_audio_by_id_and_voice,
                                kwargs={'story_id': story_id, 'voice_id': voice_id})
