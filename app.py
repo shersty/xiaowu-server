@@ -120,7 +120,7 @@ def on_message(client, userdata, msg):
                 for data in answer:
                     if data["type"] == "answer":
                         coze_response = data["content"]
-                        if coze_response.contains("【主观评语】"):
+                        if "【主观评语】" in coze_response:
                             evaluate = extract_content('主观评语', coze_response)
                             if question_id < 1:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
