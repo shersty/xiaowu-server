@@ -97,7 +97,7 @@ def on_message(client, userdata, msg):
                 for data in answer:
                     if data["type"] == "answer":
                         coze_response = data["content"]
-                        if coze_response.startswith("【主观评语】"):
+                        if coze_response.startswith("- 【主观评语】"):
                             evaluate = data["content"].split("\n")[0].split("：")[-1]
                             app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                             evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
