@@ -335,6 +335,7 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
 def record_voice():
     # 访问JSON中的属性
     data = request.get_json()
+    app.logger.info(data)
     user_id = data.get('user_id')
     voice_tag = data.get('voice_tag')
     voice_name = data.get('voice_name')
