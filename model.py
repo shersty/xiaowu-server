@@ -93,10 +93,10 @@ class Favorite(db.Model):
     created = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# with app.app_context():
-#     stories = Story.query.all()
-#     for story in stories:
-#         print(story.id, story.title, story.author, story.length)
+with app.app_context():
+    dialogues = Dialogue.query.all()
+    for dialogue in dialogues:
+        print(dialogue.id, dialogue.user_id, dialogue.role, dialogue.content, dialogue.created)
 # 注意：在user表中，password字段使用了VARCHAR(255)，实际应用中应使用更安全的加密方式存储密码。
 # if __name__ == '__main__':
 #     stories = [
