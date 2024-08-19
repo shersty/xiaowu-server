@@ -392,6 +392,22 @@ def update_voice_checked_state():
         return jsonify({'error': '更新失败'}), 500
 
 
+@app.route('/api/voice/delete/', methods=['POST'])
+def delete_voice(voice_id):
+    data = request.get_json()
+    voice_id = data.get('voice_id')
+    voice_to_delete = Voice.query.filter_by(id=voice_id).first()
+    if voice_to_delete:
+        # 删除找到的对象
+        db.session.delete(voice_to_delete)
+        # 提交会话中的更改
+        db.session.commit()
+        return jsonify({'message': f'Voice {voice_to_delete.voice_tag} deleted successfully'}), 200
+    else:
+        # 如果没有找到对象，返回错误消息
+        return jsonify({'error': 'Voice not found'}), 404
+
+
 if __name__ == '__main__':
     # 启动 MQTT 客户端线程
     mqtt_thread = threading.Thread(target=start_mqtt_client)
