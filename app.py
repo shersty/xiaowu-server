@@ -304,7 +304,6 @@ def play_story_by_id_and_voice(story_id, user_id):
     thread1.start()
     thread2 = threading.Thread(target=get_story_question_by_id_and_voice,
                                kwargs={'story_id': story_id, 'voice_id': voice_id})
-    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=story_content, created=datetime.now()))
     thread2.start()
     thread1.join()
     thread2.join()
