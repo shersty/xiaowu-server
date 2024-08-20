@@ -185,9 +185,10 @@ def on_message(client, userdata, msg):
 
 
 def play_next_story(story_id):
-    app.logger.info(f"播放下一个故事")
-    story_id = 1 if story_id == 2 else 2
-    play_story_by_id_and_voice(story_id, 1)
+    with app.app_context():
+        app.logger.info(f"播放下一个故事")
+        story_id = 1 if story_id == 2 else 2
+        play_story_by_id_and_voice(story_id, 1)
 
 
 def save_audio_stream(story_id, voice_id, query, prompt_speech=None):
