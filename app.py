@@ -144,7 +144,7 @@ def on_message(client, userdata, msg):
                                 session_info["question_id"] += 1
                                 thread_results[f"{CLIENT_SN}_session"] = session_info
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                                if question_id == 1:
+                                if question_id == 0:
                                     app.logger.info(f"第一个问题的评价，再拼接一个问题返回")
                                     # 第一个问题后边再拼接一个问题
                                     next_question = extract_content('问题', coze_response)
