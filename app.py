@@ -138,36 +138,35 @@ def on_message(client, userdata, msg):
                         coze_response = data["content"]
                         if "【主观评语】" in coze_response:
                             evaluate = extract_content('主观评语', coze_response)
-                            if question_id < 1:
+                            if question_id < 2:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                                 next_question = extract_content('问题', coze_response)
                                 # 问题数量 + 1
                                 session_info["question_id"] += 1
                                 thread_results[f"{CLIENT_SN}_session"] = session_info
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                                next_question_audio = get_audio_stream(story_id, voice_id, next_question)
-                                # 加载第一段音频
-                                audio1 = AudioSegment.from_file(evaluate_audio)
-                                # 加载第二段音频
-                                audio2 = AudioSegment.from_file(next_question_audio)
-                                # 创建静音片段
-                                silence = AudioSegment.silent(duration=1500)
-                                # 将静音片段插入到两段音频之间
-                                combined_audio = audio1 + silence + audio2
-                                combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
-                                                                   f"{story_id}_{voice_id}_{question_id}.mp3")
-                                combined_audio.export(combined_audio_path, format="mp3")
-                                send_play_instruct(combined_audio_path)
+                                if question_id == 1:
+                                    # 第一个问题后边再拼接一个问题
+                                    next_question_audio = get_audio_stream(story_id, voice_id, next_question)
+                                    # 加载第一段音频
+                                    audio1 = AudioSegment.from_file(evaluate_audio)
+                                    # 加载第二段音频
+                                    audio2 = AudioSegment.from_file(next_question_audio)
+                                    # 创建静音片段
+                                    silence = AudioSegment.silent(duration=1500)
+                                    # 将静音片段插入到两段音频之间
+                                    combined_audio = audio1 + silence + audio2
+                                    combined_audio_path = os.path.join(AUDIO_PATH,
+                                                                       f"{story_id}_{voice_id}_{question_id}.mp3")
+                                    combined_audio.export(combined_audio_path, format="mp3")
+                                    send_play_instruct(combined_audio_path)
+                                else:
+                                    send_play_instruct(evaluate_audio)
                                 new_dialogue.append(Dialogue(user_id=1, role="evaluation",
                                                              content=extract_content_from_tag('客观评价',
                                                                                               coze_response),
                                                              created=datetime.now()))
                             else:
-                                # 播放下一个故事
-                                evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                                # 尝试发送两次，发送一次总发送失败
-                                send_play_instruct(evaluate_audio)
-                                send_play_instruct(evaluate_audio)
                                 # 组装下一个故事
                                 app.logger.info(f"播放下一个故事")
                                 story_id = 1 if story_id == 2 else 2
@@ -214,7 +213,7 @@ def save_audio_stream(story_id, voice_id, query, prompt_speech=None):
         sound = AudioSegment.from_wav(output_path)
         # TODO 修改此处保存位置为nginx的对应目录
         # 导出为 .mp3 格式
-        output_mp3_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio", file_name + ".mp3")
+        output_mp3_path = os.path.join(AUDIO_PATH, file_name + ".mp3")
         app.logger.info(f"转换成mp3文件: {output_mp3_path}")
         sound.export(output_mp3_path, format="mp3")
         app.logger.info(f"花费时间: {time.time() - start_time}")
