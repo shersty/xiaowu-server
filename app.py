@@ -110,7 +110,7 @@ def on_message(client, userdata, msg):
             if message_data['identifier'] == 'recording_transcribed':
                 recording_text = message_data["inputParams"]["recordingText"].encode('utf-8').decode()
                 app.logger.info(recording_text)
-                new_dialogue.append(Dialogue(user_id=1, role="child", content=recording_text, created=datetime.now()))
+                new_dialogue.append(Dialogue(user_id=1, role=2, content=recording_text, created=datetime.now()))
                 # 这里是来自客户的语音输入，应该是回答问题的部分。
                 if f"{CLIENT_SN}_session" in thread_results:
                     session_info = thread_results[f"{CLIENT_SN}_session"]
@@ -167,7 +167,7 @@ def on_message(client, userdata, msg):
                                     # 三秒后自动组装并播放下一个故事
                                     timer = threading.Timer(3, lambda: play_next_story(story_id))
                                     timer.start()  # 启动计时器
-                                new_dialogue.append(Dialogue(user_id=1, role="evaluation",
+                                new_dialogue.append(Dialogue(user_id=1, role=1,
                                                              content=extract_content_from_tag('客观评价',
                                                                                               coze_response),
                                                              created=datetime.now()))
@@ -180,7 +180,7 @@ def on_message(client, userdata, msg):
                 if "voiceText" in message_data["inputParams"]:
                     voice_text = message_data["inputParams"]["voiceText"].encode('utf-8').decode()
                     app.logger.info(voice_text)
-                    new_dialogue.append(Dialogue(user_id=1, role="xiaowu", content=voice_text, created=datetime.now()))
+                    new_dialogue.append(Dialogue(user_id=1, role=1, content=voice_text, created=datetime.now()))
             add_dialogues(new_dialogue)
 
 
@@ -333,8 +333,8 @@ def play_story_by_id_and_voice(story_id, user_id):
                                        f"{story_id}_{voice_id}.mp3")
     combined_audio.export(combined_audio_path, format="mp3")
     send_play_instruct(combined_audio_path)
-    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=story_content, created=datetime.now()))
-    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=question_audio["content"], created=datetime.now()))
+    new_dialogues.append(Dialogue(user_id=1, role=1, content=story_content, created=datetime.now()))
+    new_dialogues.append(Dialogue(user_id=1, role=1, content=question_audio["content"], created=datetime.now()))
     add_dialogues(new_dialogues)
     return jsonify({'status': 'success', 'message': 'Story play command sent to MQTT.'}), 200
 
@@ -449,6 +449,14 @@ def get_voice_list():
     voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_tag, "created": voice.created,
                    "isChecked": voice.is_checked} for voice in voices]
     return jsonify({'success': True, 'voiceBeans': voice_list})
+
+
+@app.route('/api/dialogue/all', methods=['GET'])
+def get_dialogue_list():
+    dialogs = Dialogue.query.all()
+    dialogue_list = [{'type': dialog.role, 'content': dialog.content, 'created': dialog.created}
+                     for dialog in dialogs]
+    return jsonify({'success': True, 'dialogueList': dialogue_list})
 
 
 @app.route('/api/voice/update/', methods=['POST'])
