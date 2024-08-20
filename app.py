@@ -92,7 +92,7 @@ def send_play_instruct(audio_path):
     audio_url += os.path.basename(audio_path)
     msg = {"msgId": global_message_id, "identifier": "iwantplay", "inputParams": {"role": 2, "url": audio_url}}
     global_message_id += 1
-    app.logger.debug(f"发送播放指令:{json.dumps(msg)}")
+    app.logger.info(f"发送播放指令:{json.dumps(msg)}")
     # 向MQTT服务器发送消息
     client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg))
 
