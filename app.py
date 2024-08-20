@@ -140,13 +140,14 @@ def on_message(client, userdata, msg):
                             evaluate = extract_content('主观评语', coze_response)
                             if question_id < 2:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
-                                next_question = extract_content('问题', coze_response)
                                 # 问题数量 + 1
                                 session_info["question_id"] += 1
                                 thread_results[f"{CLIENT_SN}_session"] = session_info
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
                                 if question_id == 1:
+                                    app.logger.info(f"第一个问题的评价，再拼接一个问题返回")
                                     # 第一个问题后边再拼接一个问题
+                                    next_question = extract_content('问题', coze_response)
                                     next_question_audio = get_audio_stream(story_id, voice_id, next_question)
                                     # 加载第一段音频
                                     audio1 = AudioSegment.from_file(evaluate_audio)
@@ -161,6 +162,7 @@ def on_message(client, userdata, msg):
                                     combined_audio.export(combined_audio_path, format="mp3")
                                     send_play_instruct(combined_audio_path)
                                 else:
+                                    app.logger.info(f"第二个问题的评价，直接返回评价")
                                     send_play_instruct(evaluate_audio)
                                 new_dialogue.append(Dialogue(user_id=1, role="evaluation",
                                                              content=extract_content_from_tag('客观评价',
