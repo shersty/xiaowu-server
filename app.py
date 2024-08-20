@@ -165,6 +165,8 @@ def on_message(client, userdata, msg):
                             else:
                                 # 播放下一个故事
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
+                                # 尝试发送两次，发送一次总发送失败
+                                send_play_instruct(evaluate_audio)
                                 send_play_instruct(evaluate_audio)
                                 # 组装下一个故事
                                 app.logger.info(f"播放下一个故事")
