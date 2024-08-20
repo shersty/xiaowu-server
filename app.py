@@ -138,6 +138,7 @@ def on_message(client, userdata, msg):
                         coze_response = data["content"]
                         if "【主观评语】" in coze_response:
                             evaluate = extract_content('主观评语', coze_response)
+                            new_dialogue.append(Dialogue(user_id=1, role=1, content=evaluate, created=datetime.now()))
                             if question_id < 2:
                                 app.logger.info(f"是bot的回答，转为语音:{evaluate}")
                                 # 问题数量 + 1
@@ -148,6 +149,8 @@ def on_message(client, userdata, msg):
                                     app.logger.info(f"第一个问题的评价，再拼接一个问题返回")
                                     # 第一个问题后边再拼接一个问题
                                     next_question = extract_content('问题', coze_response)
+                                    new_dialogue.append(
+                                        Dialogue(user_id=1, role=1, content=next_question, created=datetime.now()))
                                     next_question_audio = get_audio_stream(story_id, voice_id, next_question)
                                     # 加载第一段音频
                                     audio1 = AudioSegment.from_file(evaluate_audio)
