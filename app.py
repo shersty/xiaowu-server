@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import threading
 import time
 
@@ -49,8 +50,10 @@ AUDIO_PREFIX = "http://47.121.203.152:8082/"
 ALLOWED_EXTENSIONS = set(['wav', 'txt'])
 cosy_voice_url = 'http://43.240.0.168:6006/inference/stream'
 prompt_text = "这里住着一只聪明的小动物，它的名字叫做小悟星。"
+AUDIO_PATH = "/root/workspace/folotoy-server-self-hosting/audio"
 # 创建MQTT客户端实例
 client = mqtt.Client()
+global_message_id = 1
 
 
 # MQTT回调函数
@@ -80,11 +83,24 @@ def extract_content_from_tag(tag, text):
         return "标签未找到，内容未获取"
 
 
+def send_play_instruct(audio_path):
+    global global_message_id
+    audio_url = AUDIO_PREFIX
+    if not os.path.dirname(audio_path) == AUDIO_PATH:
+        app.logger.warning(f"音频文件{audio_path}没有存放在指定目录，先移动文件到指定目录")
+        shutil.move(audio_path, os.path.join(AUDIO_PATH, os.path.basename(audio_path)))
+    audio_url += os.path.basename(audio_path)
+    msg = {"msgId": global_message_id, "identifier": "iwantplay", "inputParams": {"role": 2, "url": audio_url}}
+    global_message_id += 1
+    app.logger.debug(f"发送播放指令:{json.dumps(msg)}")
+    # 向MQTT服务器发送消息
+    client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg))
+
+
 # MQTT消息接收函数
 def on_message(client, userdata, msg):
     with app.app_context():
-        new_dialogue = None
-        objective_evaluation = None
+        new_dialogue = []
         if msg.topic == COMMAND_CALL_TOPIC:
             pass
         elif msg.topic == EVENT_POST_TOPIC:
@@ -94,7 +110,7 @@ def on_message(client, userdata, msg):
             if message_data['identifier'] == 'recording_transcribed':
                 recording_text = message_data["inputParams"]["recordingText"].encode('utf-8').decode()
                 app.logger.info(recording_text)
-                new_dialogue = Dialogue(user_id=1, role="child", content=recording_text)
+                new_dialogue.append(Dialogue(user_id=1, role="child", content=recording_text, created=datetime.now()))
                 # 这里是来自客户的语音输入，应该是回答问题的部分。
                 if f"{CLIENT_SN}_session" in thread_results:
                     session_info = thread_results[f"{CLIENT_SN}_session"]
@@ -141,47 +157,25 @@ def on_message(client, userdata, msg):
                                 combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
                                                                    f"{story_id}_{voice_id}_{question_id}.mp3")
                                 combined_audio.export(combined_audio_path, format="mp3")
-                                msg_1 = {"msgId": 1, "identifier": "iwantplay",
-                                         "inputParams": {"role": 2,
-                                                         "url": f"{AUDIO_PREFIX}{os.path.basename(combined_audio_path)}"}}
-                                app.logger.info(f"Audio file saved to {evaluate_audio}")
-                                # 向MQTT服务器发送消息
-                                client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
-                                objective_evaluation = Dialogue(user_id=1, role="xiaowu",
-                                                                content=extract_content_from_tag('客观评价', coze_response))
-                                app.logger.info(f"Objective evaluation: {objective_evaluation}")
+                                send_play_instruct(combined_audio_path)
+                                new_dialogue.append(Dialogue(user_id=1, role="evaluation",
+                                                             content=extract_content_from_tag('客观评价',
+                                                                                              coze_response),
+                                                             created=datetime.now()))
                             else:
                                 # 播放下一个故事
                                 evaluate_audio = get_audio_stream(story_id, voice_id, evaluate)
-                                msg_1 = {"msgId": 1, "identifier": "iwantplay",
-                                         "inputParams": {"role": 2,
-                                                         "url": f"{AUDIO_PREFIX}{os.path.basename(evaluate_audio)}"}}
-                                app.logger.info(f"msg is {msg_1}")
-                                # 向MQTT服务器发送消息
-                                client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+                                send_play_instruct(evaluate_audio)
                                 # 组装下一个故事
+                                app.logger.info(f"播放下一个故事")
                                 story_id = 1 if story_id == 2 else 2
                                 play_story_by_id_and_voice(story_id, 1)
-                                app.logger.info(f"播放下一个故事")
             elif message_data['identifier'] == 'voice_generated':
                 if "voiceText" in message_data["inputParams"]:
                     voice_text = message_data["inputParams"]["voiceText"].encode('utf-8').decode()
                     app.logger.info(voice_text)
-                    new_dialogue = Dialogue(user_id=1, role="xiaowu", content=voice_text)
-            if new_dialogue:
-                # 添加到会话
-                db.session.add(new_dialogue)
-                if objective_evaluation:
-                    db.session.add(objective_evaluation)
-                try:
-                    # 提交会话
-                    db.session.commit()
-                    app.logger.info(f"对话提交成功！")
-                except Exception as e:
-                    # 如果发生错误，回滚会话
-                    db.session.rollback()
-                    app.logger.error(e)
-                    app.logger.info(f"对话提交数据库失败")
+                    new_dialogue.append(Dialogue(user_id=1, role="xiaowu", content=voice_text, created=datetime.now()))
+            add_dialogues(new_dialogue)
 
 
 def save_audio_stream(story_id, voice_id, query, prompt_speech=None):
@@ -297,23 +291,28 @@ thread_results = {}
 
 @app.route('/api/story/audio/<int:story_id>/<int:user_id>', methods=['GET'])
 def play_story_by_id_and_voice(story_id, user_id):
+    new_dialogues = []
     # 获取当前user_id对应的voice_id
     voice = Voice.query.filter_by(user_id=user_id, is_checked=True).first()
     voice_id = voice.id
     app.logger.info(f"用户{user_id}选中的语音为{voice_id} - {voice.voice_desc}")
+    story = Story.query.filter_by(id=story_id).first()
+    story_content = story.content
     # 复制当前应用上下文
     thread1 = threading.Thread(target=get_story_audio_by_id_and_voice,
-                               kwargs={'story_id': story_id, 'voice_id': voice_id})
+                               kwargs={'story_id': story_id, 'voice_id': voice_id, 'story_content': story_content})
     thread1.start()
     thread2 = threading.Thread(target=get_story_question_by_id_and_voice,
                                kwargs={'story_id': story_id, 'voice_id': voice_id})
+    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=story_content, created=datetime.now()))
     thread2.start()
     thread1.join()
     thread2.join()
     # 加载第一段音频
     audio1 = AudioSegment.from_file(thread_results[f"{story_id}_{voice_id}_story_audio"])
     # 加载第二段音频
-    audio2 = AudioSegment.from_file(thread_results[f"{story_id}_{voice_id}_question_audio"])
+    question_audio = thread_results[f"{story_id}_{voice_id}_question_audio"]
+    audio2 = AudioSegment.from_file(question_audio["path"])
     # 创建静音片段
     silence = AudioSegment.silent(duration=1500)
     # 将静音片段插入到两段音频之间
@@ -321,28 +320,41 @@ def play_story_by_id_and_voice(story_id, user_id):
     combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
                                        f"{story_id}_{voice_id}.mp3")
     combined_audio.export(combined_audio_path, format="mp3")
-    msg_1 = {"msgId": 1, "identifier": "iwantplay",
-             "inputParams": {"role": 2, "url": f"{AUDIO_PREFIX}{os.path.basename(combined_audio_path)}"}}
-    app.logger.info(f"Audio file saved to {combined_audio_path}")
-    # 向MQTT服务器发送消息
-    client.publish(COMMAND_CALL_TOPIC, payload=json.dumps(msg_1))
+    send_play_instruct(combined_audio_path)
+    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=story_content, created=datetime.now()))
+    new_dialogues.append(Dialogue(user_id=1, role="xiaowu", content=question_audio["content"], created=datetime.now()))
+    add_dialogues(new_dialogues)
     return jsonify({'status': 'success', 'message': 'Story play command sent to MQTT.'}), 200
 
 
-def get_story_audio_by_id_and_voice(story_id, voice_id):
+def add_dialogues(new_dialogues):
+    with app.app_context():
+        if new_dialogues:
+            # 添加到会话
+            db.session.add_all(new_dialogues)
+            try:
+                # 提交会话
+                db.session.commit()
+                app.logger.info(f"对话提交成功！")
+            except Exception as e:
+                # 如果发生错误，回滚会话
+                db.session.rollback()
+                app.logger.error(e)
+                app.logger.info(f"对话提交数据库失败")
+
+
+def get_story_audio_by_id_and_voice(story_id, voice_id, story_content):
     with app.app_context():
         # 使用filter_by查询，其中story_id和voice_id将从URL中自动转换为整数
         story_audio = StoryAudio.query.filter_by(story_id=story_id, voice_id=voice_id).first()
         # 如果没有找到故事音频，返回404状态码和错误消息
         if not story_audio:
             app.logger.info(f"没有找到{story_id}对应{voice_id}的音频文件，重新生成")
-            story = Story.query.filter_by(id=story_id).first()
-            story_content = story.content
             story_audio = get_audio_stream(story_id, voice_id, story_content)
             if story_audio:
-                new_user = StoryAudio(story_id=story_id, voice_id=voice_id, audio_path=story_audio)
+                new_story_audio = StoryAudio(story_id=story_id, voice_id=voice_id, audio_path=story_audio)
                 # 添加到会话
-                db.session.add(new_user)
+                db.session.add(new_story_audio)
                 try:
                     # 提交会话
                     db.session.commit()
@@ -387,7 +399,11 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
                 question = data["content"].split("：")[-1]
                 app.logger.info(f"是bot的回答，转为语音:{question}")
                 question_audio = get_audio_stream(story_id, voice_id, question)
-                thread_results[f"{story_id}_{voice_id}_question_audio"] = question_audio
+                thread_results[f"{story_id}_{voice_id}_question_audio"] = {
+                    "path": question_audio,
+                    "content": question
+                }
+                break
 
 
 @app.route('/api/voice/record/', methods=['POST'])
