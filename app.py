@@ -164,6 +164,9 @@ def on_message(client, userdata, msg):
                                 else:
                                     app.logger.info(f"第二个问题的评价，直接返回评价")
                                     send_play_instruct(evaluate_audio)
+                                    # 三秒后自动组装并播放下一个故事
+                                    timer = threading.Timer(3, lambda: play_next_story(story_id))
+                                    timer.start()  # 启动计时器
                                 new_dialogue.append(Dialogue(user_id=1, role="evaluation",
                                                              content=extract_content_from_tag('客观评价',
                                                                                               coze_response),
@@ -179,6 +182,12 @@ def on_message(client, userdata, msg):
                     app.logger.info(voice_text)
                     new_dialogue.append(Dialogue(user_id=1, role="xiaowu", content=voice_text, created=datetime.now()))
             add_dialogues(new_dialogue)
+
+
+def play_next_story(story_id):
+    app.logger.info(f"播放下一个故事")
+    story_id = 1 if story_id == 2 else 2
+    play_story_by_id_and_voice(story_id, 1)
 
 
 def save_audio_stream(story_id, voice_id, query, prompt_speech=None):
