@@ -51,6 +51,7 @@ ALLOWED_EXTENSIONS = set(['wav', 'txt'])
 cosy_voice_url = 'http://43.240.0.168:6006/inference/stream'
 prompt_text = "这里住着一只聪明的小动物，它的名字叫做小悟星。"
 AUDIO_PATH = "/root/workspace/folotoy-server-self-hosting/audio"
+# AUDIO_PATH = "/Users/shersty/Documents"
 # 创建MQTT客户端实例
 client = mqtt.Client()
 global_message_id = 1
@@ -261,7 +262,7 @@ def play_story():
     return jsonify({'status': 'success', 'message': 'Story play command sent to MQTT.'}), 200
 
 
-@app.route('/api/story/generate', methods=['GET'])
+@app.route('/api/story/generate/<int:story_id>/<int:voice_id>/<string:story_content>', methods=['GET'])
 def get_audio_stream(story_id, voice_id, story_content):
     #     query = """宝贝，如果你家住在北方，冬天的时候树上和草地上都变得光秃秃的，那些绿绿的树叶和青草，还有五颜六色的花朵，都去哪了呢？我们和小驴托托一起寻找答案吧。
     # 小驴托托非常非常喜欢花。可是到了冬天花儿都不见了。托托在雪地里到处找，花儿都去哪儿了呢？托托拎起洒水壶去浇花儿，想让花儿长出来，可是水很快就结成了冰。图图想问问鸟儿和松鼠，花儿都去哪儿了？可是松鼠一直在睡觉，鸟儿也都飞走了。托托着急的问妈妈：“花儿都去哪儿了？”妈妈回答：“花儿都钻进泥土里去休息了，他们在为明年春天的表演做准备呢。”
@@ -332,8 +333,7 @@ def play_story_by_id_and_voice(story_id, user_id):
     silence = AudioSegment.silent(duration=1500)
     # 将静音片段插入到两段音频之间
     combined_audio = audio1 + silence + audio2
-    combined_audio_path = os.path.join("/root/workspace/folotoy-server-self-hosting/audio",
-                                       f"{story_id}_{voice_id}.mp3")
+    combined_audio_path = os.path.join(AUDIO_PATH, f"{story_id}_{voice_id}.mp3")
     combined_audio.export(combined_audio_path, format="mp3")
     send_play_instruct(combined_audio_path)
     new_dialogues.append(Dialogue(user_id=1, role=1, content=story_content, created=datetime.now()))
@@ -392,33 +392,42 @@ def get_story_question_by_id_and_voice(story_id, voice_id):
     with app.app_context():
         app.logger.info(f"生成故事对应的问题")
         story = Story.query.filter_by(id=story_id).first()
-        content = story.content
-        # 请求coze获取故事对应的问题
-        session_id = create_session()
-        thread_results[f"{CLIENT_SN}_session"] = {
-            "session_id": session_id,
-            "story_id": story_id,
-            "voice_id": voice_id,
-            "question_id": 0
-        }
-        chat_data = create_chat(session_id, content)
-        state = retrieve_chat(session_id, chat_data["id"])
-        while state != "completed":
-            print(f"{(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))} - chat_state: {state}")
+        if story.need_question:
+            content = story.content
+            # 请求coze获取故事对应的问题
+            session_id = create_session()
+            thread_results[f"{CLIENT_SN}_session"] = {
+                "session_id": session_id,
+                "story_id": story_id,
+                "voice_id": voice_id,
+                "question_id": 0
+            }
+            chat_data = create_chat(session_id, content)
             state = retrieve_chat(session_id, chat_data["id"])
-            time.sleep(0.5)
-        # 获取对话列表
-        answer = chat_list(session_id, chat_data["id"])
-        for data in answer:
-            if data["type"] == "answer":
-                question = data["content"].split("：")[-1]
-                app.logger.info(f"是bot的回答，转为语音:{question}")
-                question_audio = get_audio_stream(story_id, voice_id, question)
-                thread_results[f"{story_id}_{voice_id}_question_audio"] = {
-                    "path": question_audio,
-                    "content": question
-                }
-                break
+            while state != "completed":
+                print(f"{(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()))} - chat_state: {state}")
+                state = retrieve_chat(session_id, chat_data["id"])
+                time.sleep(0.5)
+            # 获取对话列表
+            answer = chat_list(session_id, chat_data["id"])
+            for data in answer:
+                if data["type"] == "answer":
+                    question = data["content"].split("：")[-1]
+                    app.logger.info(f"是bot的回答，转为语音:{question}")
+                    question_audio = get_audio_stream(story_id, voice_id, question)
+                    thread_results[f"{story_id}_{voice_id}_question_audio"] = {
+                        "path": question_audio,
+                        "content": question
+                    }
+                    break
+        else:
+            app.logger.info(f"不用提问题，嵌入小悟的广告词")
+            story = Story.query.filter_by(id=666).first()
+            question_audio = get_audio_stream(666, voice_id, story.content)
+            thread_results[f"{story_id}_{voice_id}_question_audio"] = {
+                "path": question_audio,
+                "content": story.content
+            }
 
 
 @app.route('/api/voice/record/', methods=['POST'])
@@ -509,6 +518,26 @@ def delete_voice():
     else:
         # 如果没有找到对象，返回错误消息
         return jsonify({'success': False}), 404
+
+
+@app.route('/api/story/add', methods=['POST'])
+def add_story():
+    # 获取JSON数据
+    data = request.get_json()
+    # 创建Story实例
+    new_story = Story(
+        category_id=data['category_id'],
+        title=data['title'],
+        content=data['content'],
+        author=data.get('author'),  # 如果没有提供作者，则为None
+        length=len(data['content']),  # 假设长度是内容的长度
+        need_question=data.get('need_question')
+    )
+    # 添加到session并提交
+    db.session.add(new_story)
+    db.session.commit()
+    # 返回响应
+    return jsonify({"message": "Story added successfully", "story_id": new_story.id}), 201
 
 
 if __name__ == '__main__':

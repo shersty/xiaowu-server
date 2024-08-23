@@ -19,6 +19,7 @@ class Story(db.Model):
     author = db.Column(db.String(255))
     length = db.Column(db.Integer, nullable=False)
     created = db.Column(db.DateTime, default=datetime.utcnow)
+    need_question = db.Column(db.Boolean, default=False)  # 新增布尔字段
 
 
 class StoryQuestion(db.Model):
