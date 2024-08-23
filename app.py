@@ -457,9 +457,10 @@ def record_voice():
 @app.route('/api/voice/all', methods=['GET'])
 def get_voice_list():
     voices = Voice.query.all()
+    exclude_id = 666
     # 将查询结果转换为列表
     voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_tag, "created": voice.created,
-                   "isChecked": voice.is_checked} for voice in voices]
+                   "isChecked": voice.is_checked} for voice in voices if voice.id != exclude_id]
     return jsonify({'success': True, 'voiceBeans': voice_list})
 
 
