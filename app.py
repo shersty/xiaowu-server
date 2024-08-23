@@ -297,8 +297,9 @@ def upload_by_api():
 @app.route('/api/stories/all', methods=['GET'])
 def query_all_story():
     stories = Story.query.all()
+    exclude_id = 666
     # 将查询结果转换为列表
-    story_list = [{'id': story.id, 'title': story.title, 'content': story.content} for story in stories]
+    story_list = [{'id': story.id, 'title': story.title, 'content': story.content} for story in stories if story.id != exclude_id]
     return jsonify({'success': True, 'stories': story_list})
 
 
@@ -457,10 +458,9 @@ def record_voice():
 @app.route('/api/voice/all', methods=['GET'])
 def get_voice_list():
     voices = Voice.query.all()
-    exclude_id = 666
     # 将查询结果转换为列表
     voice_list = [{'id': voice.id, 'userId': voice.user_id, 'voiceDesc': voice.voice_tag, "created": voice.created,
-                   "isChecked": voice.is_checked} for voice in voices if voice.id != exclude_id]
+                   "isChecked": voice.is_checked} for voice in voices]
     return jsonify({'success': True, 'voiceBeans': voice_list})
 
 
